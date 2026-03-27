@@ -1,450 +1,449 @@
-import { useEffect, useRef, useState, useCallback } from "react";
-import { greecePatches, getRiskColor } from "../data/greeceData";
+import { useState, useEffect, useRef, useCallback } from "react";
+import DeckGL from "@deck.gl/react";
+import { ScatterplotLayer, GeoJsonLayer } from "@deck.gl/layers";
+import { Map } from "react-map-gl/maplibre";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { greecePatches } from "../data/greeceData";
 
-// Mercator projection utilities
-function latLonToXY(lat, lon, bounds, width, height) {
-  const { minLon, maxLon, minLat, maxLat } = bounds;
-  const x = ((lon - minLon) / (maxLon - minLon)) * width;
-  // Flip Y (lat increases up, canvas increases down)
-  const y = ((maxLat - lat) / (maxLat - minLat)) * height;
-  return { x, y };
-}
+// ── Constants ──────────────────────────────────────────────────────────────────
+const CARTO_DARK =
+  "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
-const GREECE_BOUNDS = {
-  minLat: 34.8,
-  maxLat: 42.0,
-  minLon: 19.4,
-  maxLon: 29.8,
+const INITIAL_VIEW_STATE = {
+  latitude: 38.5,
+  longitude: 23.5,
+  zoom: 5.5,
+  pitch: 45,
+  bearing: -10,
+  transitionDuration: 800,
 };
 
-export default function GreeceMap({ onPatchClick, assetPins = [], selectedPatch }) {
-  const canvasRef = useRef(null);
-  const containerRef = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
-  const [transform, setTransform] = useState({ scale: 1, tx: 0, ty: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState(null);
-  const [hoveredPatch, setHoveredPatch] = useState(null);
-  const [tooltip, setTooltip] = useState(null);
-  const animFrameRef = useRef(null);
-  const pulseRef = useRef(0);
-  const geoJsonRef = useRef(null);
-  const [geoLoaded, setGeoLoaded] = useState(false);
+const GEO_URL =
+  "https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson";
 
-  // Load Greece GeoJSON boundary
+// ── Color helpers ──────────────────────────────────────────────────────────────
+function scoreToRgba(score, alpha = 210) {
+  if (score >= 76) return [239, 68, 68, alpha];
+  if (score >= 51) return [245, 158, 11, alpha];
+  if (score >= 26) return [234, 179, 8, alpha];
+  return [0, 212, 170, alpha];
+}
+
+function scoreToLineRgba(score) {
+  if (score >= 76) return [239, 68, 68, 255];
+  if (score >= 51) return [245, 158, 11, 255];
+  if (score >= 26) return [234, 179, 8, 255];
+  return [0, 212, 170, 255];
+}
+
+// ── Tooltip component ──────────────────────────────────────────────────────────
+const TIER_COLOR = {
+  CRITICAL: "#EF4444",
+  HIGH: "#F59E0B",
+  MEDIUM: "#EAB308",
+  LOW: "#00D4AA",
+};
+
+function MapTooltip({ info }) {
+  if (!info || !info.object || info.layer?.id === "greece-boundary") return null;
+  const patch = info.object;
+  const color = TIER_COLOR[patch.tier] || "#00D4AA";
+  const x = info.x;
+  const y = info.y;
+
+  return (
+    <div
+      className="pointer-events-none absolute z-50"
+      style={{ left: x + 14, top: y - 36 }}
+    >
+      <div
+        className="px-3 py-2 rounded-xl text-xs shadow-2xl"
+        style={{
+          background: "rgba(8, 12, 26, 0.97)",
+          border: `1px solid ${color}50`,
+          minWidth: 160,
+          backdropFilter: "blur(12px)",
+          boxShadow: `0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px ${color}20`,
+        }}
+      >
+        <div className="font-bold text-white text-sm leading-tight">{patch.name}</div>
+        <div className="text-white/40 text-[10px] mt-0.5">{patch.region}</div>
+        <div className="flex items-center gap-2 mt-1.5">
+          <span
+            className="font-mono font-bold text-base"
+            style={{ color }}
+          >
+            {patch.score}
+          </span>
+          <span
+            className="text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase"
+            style={{ background: `${color}20`, color }}
+          >
+            {patch.tier}
+          </span>
+          <span className="text-white/30 text-[10px] ml-auto">
+            {patch.trend === "rising" ? "↑" : patch.trend === "improving" ? "↓" : "→"}
+          </span>
+        </div>
+      </div>
+      {/* Arrow */}
+      <div
+        className="absolute -left-[5px] top-[28px] w-2 h-2 rotate-45"
+        style={{ background: "rgba(8, 12, 26, 0.97)", borderLeft: `1px solid ${color}50`, borderBottom: `1px solid ${color}50` }}
+      />
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
+export default function GreeceMap({ onPatchClick, assetPins = [], selectedPatch }) {
+  const [viewState, setViewState] = useState(INITIAL_VIEW_STATE);
+  const [hoverInfo, setHoverInfo] = useState(null);
+  const [greeceGeoJson, setGreeceGeoJson] = useState(null);
+  const [geoLoading, setGeoLoading] = useState(true);
+  const [pulseScale, setPulseScale] = useState(1);
+  const pulseRef = useRef(null);
+  const containerRef = useRef(null);
+
+  // ── Fetch Greece GeoJSON ─────────────────────────────────────────────────────
   useEffect(() => {
-    fetch("https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson")
+    fetch(GEO_URL)
       .then((r) => r.json())
       .then((data) => {
         const greece = data.features.find(
-          (f) => f.properties.ISO_A3 === "GRC" || f.properties.ADMIN === "Greece"
+          (f) =>
+            f.properties?.ISO_A3 === "GRC" ||
+            f.properties?.ADMIN === "Greece" ||
+            f.properties?.NAME === "Greece"
         );
-        if (greece) geoJsonRef.current = greece;
-        setGeoLoaded(true);
+        if (greece) setGreeceGeoJson(greece);
       })
-      .catch(() => setGeoLoaded(true));
+      .catch(() => {
+        // Silently fail — map still works without boundary
+      })
+      .finally(() => setGeoLoading(false));
   }, []);
 
-  // Resize observer
+  // ── Pulse animation for CRITICAL patches ────────────────────────────────────
   useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => {
-      setDimensions({ width: el.offsetWidth, height: el.offsetHeight });
-    });
-    ro.observe(el);
-    setDimensions({ width: el.offsetWidth, height: el.offsetHeight });
-    return () => ro.disconnect();
+    let frame = 0;
+    pulseRef.current = setInterval(() => {
+      frame += 1;
+      // Oscillate between 1.0 and 1.35
+      setPulseScale(1 + 0.35 * Math.abs(Math.sin(frame * 0.07)));
+    }, 40);
+    return () => clearInterval(pulseRef.current);
   }, []);
 
-  // Project point with current transform
-  const project = useCallback((lat, lon) => {
-    const { width, height } = dimensions;
-    const { scale, tx, ty } = transform;
-    const base = latLonToXY(lat, lon, GREECE_BOUNDS, width, height);
-    return {
-      x: (base.x - width / 2) * scale + width / 2 + tx,
-      y: (base.y - height / 2) * scale + height / 2 + ty,
-    };
-  }, [dimensions, transform]);
+  // ── Layers ───────────────────────────────────────────────────────────────────
+  const layers = [];
 
-  // Render loop
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    let animId;
-    let pulse = 0;
+  // 1. Greece boundary fill + stroke
+  if (greeceGeoJson) {
+    layers.push(
+      new GeoJsonLayer({
+        id: "greece-boundary-fill",
+        data: greeceGeoJson,
+        stroked: false,
+        filled: true,
+        getFillColor: [0, 212, 170, 18],
+        pickable: false,
+      }),
+      new GeoJsonLayer({
+        id: "greece-boundary",
+        data: greeceGeoJson,
+        stroked: true,
+        filled: false,
+        getLineColor: [0, 212, 170, 200],
+        lineWidthMinPixels: 2,
+        lineWidthMaxPixels: 3,
+        pickable: false,
+      })
+    );
+  }
 
-    function drawGeoJSON(ctx) {
-      if (!geoJsonRef.current) return;
-      const geom = geoJsonRef.current.geometry;
-      const polys = geom.type === "MultiPolygon" ? geom.coordinates : [geom.coordinates];
+  // 2. Pulse rings for CRITICAL patches
+  const criticalPatches = greecePatches.filter((p) => p.score >= 76);
+  layers.push(
+    new ScatterplotLayer({
+      id: "critical-pulse",
+      data: criticalPatches,
+      getPosition: (d) => [d.lon, d.lat],
+      getRadius: 10000 * pulseScale,
+      radiusMinPixels: 6,
+      radiusMaxPixels: 36,
+      getFillColor: [239, 68, 68, 0],
+      getLineColor: [239, 68, 68, Math.round(90 * (2 - pulseScale))],
+      stroked: true,
+      filled: false,
+      lineWidthMinPixels: 1.5,
+      pickable: false,
+    })
+  );
 
-      ctx.strokeStyle = "rgba(0,212,170,0.5)";
-      ctx.lineWidth = 1.5 / transform.scale;
-      ctx.fillStyle = "rgba(0,212,170,0.04)";
+  // 3. HIGH patches pulse rings (amber)
+  const highPatches = greecePatches.filter((p) => p.score >= 51 && p.score < 76);
+  layers.push(
+    new ScatterplotLayer({
+      id: "high-pulse",
+      data: highPatches,
+      getPosition: (d) => [d.lon, d.lat],
+      getRadius: 9000 * (1 + 0.2 * Math.abs(Math.sin(pulseScale * 3))),
+      radiusMinPixels: 5,
+      radiusMaxPixels: 28,
+      getFillColor: [245, 158, 11, 0],
+      getLineColor: [245, 158, 11, Math.round(50 * (2 - pulseScale))],
+      stroked: true,
+      filled: false,
+      lineWidthMinPixels: 1,
+      pickable: false,
+    })
+  );
 
-      polys.forEach((poly) => {
-        poly.forEach((ring) => {
-          ctx.beginPath();
-          ring.forEach(([lon, lat], i) => {
-            const { x, y } = project(lat, lon);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          });
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-        });
-      });
+  // 4. Main risk patches — glow halos
+  layers.push(
+    new ScatterplotLayer({
+      id: "risk-patches-glow",
+      data: greecePatches,
+      getPosition: (d) => [d.lon, d.lat],
+      getRadius: 12000,
+      radiusMinPixels: 8,
+      radiusMaxPixels: 32,
+      getFillColor: (d) => {
+        const c = scoreToRgba(d.score, 0);
+        return [...c.slice(0, 3), 40];
+      },
+      stroked: false,
+      pickable: false,
+    })
+  );
 
-      // Glow effect for boundary
-      ctx.strokeStyle = "rgba(0,212,170,0.15)";
-      ctx.lineWidth = 4 / transform.scale;
-      polys.forEach((poly) => {
-        poly.forEach((ring) => {
-          ctx.beginPath();
-          ring.forEach(([lon, lat], i) => {
-            const { x, y } = project(lat, lon);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-          });
-          ctx.closePath();
-          ctx.stroke();
-        });
-      });
+  // 5. Main risk patches — solid dots
+  layers.push(
+    new ScatterplotLayer({
+      id: "risk-patches",
+      data: greecePatches,
+      getPosition: (d) => [d.lon, d.lat],
+      getRadius: (d) => {
+        const base = 6000 + (d.score / 100) * 4000;
+        return selectedPatch?.id === d.id ? base * 1.5 : base;
+      },
+      radiusMinPixels: 4,
+      radiusMaxPixels: 22,
+      getFillColor: (d) => scoreToRgba(d.score, selectedPatch?.id === d.id ? 255 : 210),
+      getLineColor: (d) =>
+        selectedPatch?.id === d.id ? [255, 255, 255, 255] : scoreToLineRgba(d.score),
+      stroked: true,
+      lineWidthMinPixels: selectedPatch ? 1.5 : 0,
+      lineWidthMaxPixels: 3,
+      pickable: true,
+      autoHighlight: true,
+      highlightColor: [255, 255, 255, 60],
+      onClick: (info) => {
+        if (info.object) onPatchClick(info.object);
+      },
+      onHover: (info) => setHoverInfo(info.object ? info : null),
+      updateTriggers: {
+        getRadius: [selectedPatch?.id],
+        getFillColor: [selectedPatch?.id],
+        getLineColor: [selectedPatch?.id],
+      },
+    })
+  );
+
+  // 6. Asset pins (if uploaded)
+  if (assetPins.length > 0) {
+    // Proximity risk pulsing halos
+    const riskyAssets = assetPins.filter((a) => a.proximity_risk);
+    if (riskyAssets.length > 0) {
+      layers.push(
+        new ScatterplotLayer({
+          id: "asset-risk-halos",
+          data: riskyAssets,
+          getPosition: (d) => [d.lon, d.lat],
+          getRadius: 9000 * (1 + 0.25 * Math.abs(Math.sin(pulseScale * 2.5))),
+          radiusMinPixels: 10,
+          radiusMaxPixels: 30,
+          getFillColor: [245, 158, 11, 0],
+          getLineColor: [245, 158, 11, 160],
+          stroked: true,
+          filled: false,
+          lineWidthMinPixels: 2,
+          pickable: false,
+        })
+      );
     }
 
-    function drawPatches(ctx, pulse) {
-      greecePatches.forEach((patch) => {
-        const { x, y } = project(patch.lat, patch.lon);
-        const isCritical = patch.score >= 76;
-        const isSelected = selectedPatch?.id === patch.id;
-        const isHovered = hoveredPatch?.id === patch.id;
-        const color = getRiskColor(patch.score);
-
-        const baseRadius = 6 + (patch.score / 100) * 8;
-        const radius = (isSelected || isHovered) ? baseRadius * 1.4 : baseRadius;
-
-        // Pulse ring for high/critical
-        if (isCritical) {
-          const pulseRadius = radius + 6 + Math.sin(pulse * 0.08) * 5;
-          const pulseAlpha = 0.3 + Math.sin(pulse * 0.08) * 0.2;
-          ctx.beginPath();
-          ctx.arc(x, y, pulseRadius, 0, Math.PI * 2);
-          ctx.strokeStyle = `${color}${Math.round(pulseAlpha * 255).toString(16).padStart(2, "0")}`;
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
-
-        // Outer glow
-        const grd = ctx.createRadialGradient(x, y, 0, x, y, radius * 2.5);
-        grd.addColorStop(0, color + "40");
-        grd.addColorStop(1, "transparent");
-        ctx.beginPath();
-        ctx.arc(x, y, radius * 2.5, 0, Math.PI * 2);
-        ctx.fillStyle = grd;
-        ctx.fill();
-
-        // Main dot
-        ctx.beginPath();
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fillStyle = color + "cc";
-        ctx.fill();
-        ctx.strokeStyle = isSelected ? "white" : color;
-        ctx.lineWidth = isSelected ? 2 : 1;
-        ctx.stroke();
-
-        // Center highlight
-        ctx.beginPath();
-        ctx.arc(x, y, radius * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(255,255,255,0.5)";
-        ctx.fill();
-      });
-    }
-
-    function drawAssetPins(ctx) {
-      assetPins.forEach((pin) => {
-        const { x, y } = project(pin.lat, pin.lon);
-        const isHighRisk = pin.proximity_risk;
-
-        if (isHighRisk) {
-          ctx.beginPath();
-          ctx.arc(x, y, 12 + Math.sin(pulse * 0.08) * 3, 0, Math.PI * 2);
-          ctx.strokeStyle = "rgba(245,158,11,0.5)";
-          ctx.lineWidth = 2;
-          ctx.stroke();
-        }
-
-        // Diamond shape
-        ctx.save();
-        ctx.translate(x, y);
-        ctx.rotate(Math.PI / 4);
-        ctx.beginPath();
-        ctx.rect(-5, -5, 10, 10);
-        ctx.fillStyle = isHighRisk ? "#F59E0B" : "rgba(255,255,255,0.9)";
-        ctx.fill();
-        ctx.strokeStyle = "rgba(0,0,0,0.5)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        ctx.restore();
-      });
-    }
-
-    function drawTooltip(ctx) {
-      if (!tooltip) return;
-      const { x, y, patch } = tooltip;
-      const color = getRiskColor(patch.score);
-      const padding = 10;
-      const w = 160;
-      const h = 56;
-      let tx = x + 14;
-      let ty = y - h / 2;
-      if (tx + w > dimensions.width - 10) tx = x - w - 14;
-      if (ty < 5) ty = 5;
-
-      ctx.save();
-      ctx.shadowColor = "rgba(0,0,0,0.5)";
-      ctx.shadowBlur = 15;
-      ctx.beginPath();
-      ctx.roundRect(tx, ty, w, h, 8);
-      ctx.fillStyle = "rgba(10,15,30,0.95)";
-      ctx.fill();
-      ctx.strokeStyle = color + "60";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.restore();
-
-      ctx.fillStyle = "white";
-      ctx.font = "bold 12px Inter, sans-serif";
-      ctx.fillText(patch.name, tx + padding, ty + padding + 12);
-      ctx.fillStyle = color;
-      ctx.font = "11px Inter, sans-serif";
-      ctx.fillText(`Score: ${patch.score} · ${patch.tier}`, tx + padding, ty + padding + 28);
-      ctx.fillStyle = "rgba(255,255,255,0.4)";
-      ctx.font = "10px Inter, sans-serif";
-      ctx.fillText(patch.region, tx + padding, ty + padding + 44);
-    }
-
-    function render() {
-      const { width, height } = dimensions;
-      canvas.width = width;
-      canvas.height = height;
-
-      // Background
-      ctx.fillStyle = "#0A0F1E";
-      ctx.fillRect(0, 0, width, height);
-
-      // Grid lines
-      ctx.strokeStyle = "rgba(0,212,170,0.04)";
-      ctx.lineWidth = 1;
-      for (let i = 0; i < width; i += 40) {
-        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, height); ctx.stroke();
-      }
-      for (let j = 0; j < height; j += 40) {
-        ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(width, j); ctx.stroke();
-      }
-
-      drawGeoJSON(ctx);
-      drawPatches(ctx, pulse);
-      drawAssetPins(ctx);
-      drawTooltip(ctx);
-
-      pulse++;
-      animId = requestAnimationFrame(render);
-    }
-
-    render();
-    return () => cancelAnimationFrame(animId);
-  }, [dimensions, transform, geoLoaded, hoveredPatch, tooltip, selectedPatch, assetPins, project]);
-
-  // Mouse interactions
-  function getPatchAtPoint(clientX, clientY) {
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const mx = clientX - rect.left;
-    const my = clientY - rect.top;
-    let closest = null;
-    let minDist = 20;
-
-    greecePatches.forEach((patch) => {
-      const { x, y } = project(patch.lat, patch.lon);
-      const dist = Math.sqrt((x - mx) ** 2 + (y - my) ** 2);
-      if (dist < minDist) {
-        minDist = dist;
-        closest = patch;
-      }
-    });
-    return closest;
+    layers.push(
+      new ScatterplotLayer({
+        id: "asset-pins",
+        data: assetPins,
+        getPosition: (d) => [d.lon, d.lat],
+        getRadius: 5000,
+        radiusMinPixels: 5,
+        radiusMaxPixels: 14,
+        getFillColor: (d) =>
+          d.proximity_risk ? [245, 158, 11, 230] : [255, 255, 255, 220],
+        getLineColor: [20, 30, 50, 255],
+        stroked: true,
+        lineWidthMinPixels: 1.5,
+        pickable: true,
+        onHover: (info) => setHoverInfo(info.object ? info : null),
+      })
+    );
   }
 
-  function handleMouseMove(e) {
-    const patch = getPatchAtPoint(e.clientX, e.clientY);
-    setHoveredPatch(patch);
-    if (patch) {
-      const canvas = canvasRef.current;
-      const rect = canvas.getBoundingClientRect();
-      setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top, patch });
-      canvasRef.current.style.cursor = "pointer";
-    } else {
-      setTooltip(null);
-      canvasRef.current.style.cursor = isDragging ? "grabbing" : "grab";
-    }
+  // ── View state controls ───────────────────────────────────────────────────────
+  const zoomIn = useCallback(() => {
+    setViewState((v) => ({ ...v, zoom: Math.min(v.zoom + 0.7, 14), transitionDuration: 300 }));
+  }, []);
 
-    if (isDragging && dragStart) {
-      const dx = e.clientX - dragStart.x;
-      const dy = e.clientY - dragStart.y;
-      setTransform((t) => ({ ...t, tx: t.tx + dx, ty: t.ty + dy }));
-      setDragStart({ x: e.clientX, y: e.clientY });
-    }
-  }
+  const zoomOut = useCallback(() => {
+    setViewState((v) => ({ ...v, zoom: Math.max(v.zoom - 0.7, 3), transitionDuration: 300 }));
+  }, []);
 
-  function handleMouseDown(e) {
-    setIsDragging(true);
-    setDragStart({ x: e.clientX, y: e.clientY });
-  }
+  const resetView = useCallback(() => {
+    setViewState({ ...INITIAL_VIEW_STATE, transitionDuration: 600 });
+  }, []);
 
-  function handleMouseUp(e) {
-    setIsDragging(false);
-    setDragStart(null);
-  }
+  const tiltToggle = useCallback(() => {
+    setViewState((v) => ({
+      ...v,
+      pitch: v.pitch > 10 ? 0 : 45,
+      transitionDuration: 600,
+    }));
+  }, []);
 
-  function handleClick(e) {
-    const patch = getPatchAtPoint(e.clientX, e.clientY);
-    if (patch) onPatchClick(patch);
-  }
-
-  function handleWheel(e) {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.85 : 1.18;
-    const canvas = canvasRef.current;
-    const rect = canvas.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
-    const { width, height } = dimensions;
-
-    setTransform((t) => {
-      const newScale = Math.max(0.5, Math.min(8, t.scale * delta));
-      const ratio = newScale / t.scale;
-      // Zoom toward mouse position
-      const newTx = mx - ratio * (mx - (width / 2 + t.tx)) - width / 2;
-      const newTy = my - ratio * (my - (height / 2 + t.ty)) - height / 2;
-      return { scale: newScale, tx: newTx, ty: newTy };
-    });
-  }
-
-  function handleTouchStart(e) {
-    if (e.touches.length === 1) {
-      setIsDragging(true);
-      setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-    }
-  }
-
-  function handleTouchMove(e) {
-    e.preventDefault();
-    if (e.touches.length === 1 && isDragging) {
-      const dx = e.touches[0].clientX - dragStart.x;
-      const dy = e.touches[0].clientY - dragStart.y;
-      setTransform((t) => ({ ...t, tx: t.tx + dx, ty: t.ty + dy }));
-      setDragStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
-    }
-  }
-
-  function handleTouchEnd() {
-    setIsDragging(false);
-  }
-
-  function resetView() {
-    setTransform({ scale: 1, tx: 0, ty: 0 });
-  }
-
-  function zoomIn() {
-    setTransform((t) => ({ ...t, scale: Math.min(8, t.scale * 1.3) }));
-  }
-
-  function zoomOut() {
-    setTransform((t) => ({ ...t, scale: Math.max(0.5, t.scale * 0.77) }));
-  }
-
+  // ── Render ────────────────────────────────────────────────────────────────────
   return (
-    <div ref={containerRef} className="relative w-full h-full overflow-hidden" style={{ background: "#0A0F1E" }}>
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0"
-        onMouseMove={handleMouseMove}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-        onClick={handleClick}
-        onWheel={handleWheel}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        style={{ cursor: "grab" }}
-      />
+    <div ref={containerRef} className="relative w-full h-full overflow-hidden">
+      <DeckGL
+        viewState={viewState}
+        onViewStateChange={({ viewState: vs }) => setViewState(vs)}
+        controller={{ doubleClickZoom: true, touchRotate: true, dragRotate: true }}
+        layers={layers}
+        style={{ position: "absolute", inset: 0 }}
+        getCursor={({ isHovering }) => (isHovering ? "pointer" : "grab")}
+      >
+        <Map
+          mapStyle={CARTO_DARK}
+          style={{ width: "100%", height: "100%" }}
+          attributionControl={false}
+        />
+      </DeckGL>
 
-      {/* Map Legend */}
+      {/* Hover tooltip */}
+      {hoverInfo && hoverInfo.object && (
+        <MapTooltip info={hoverInfo} />
+      )}
+
+      {/* ── Map Legend ─────────────────────────────────────────────────────── */}
       <div
-        className="absolute bottom-4 left-4 p-3 rounded-xl text-xs space-y-1.5"
+        className="absolute bottom-16 left-4 p-3 rounded-xl text-xs z-10"
         style={{
-          background: "rgba(10,15,30,0.85)",
-          border: "1px solid rgba(0,212,170,0.15)",
-          backdropFilter: "blur(8px)",
+          background: "rgba(8,12,26,0.88)",
+          border: "1px solid rgba(0,212,170,0.18)",
+          backdropFilter: "blur(10px)",
+          boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
         }}
       >
-        <div className="text-white/40 font-semibold uppercase tracking-wider text-[10px] mb-2">Risk Level</div>
+        <div className="text-white/40 font-semibold uppercase tracking-wider text-[10px] mb-2">
+          Risk Level
+        </div>
         {[
-          { color: "#EF4444", label: "Critical (76-100)" },
-          { color: "#F59E0B", label: "High (51-75)" },
-          { color: "#EAB308", label: "Medium (26-50)" },
-          { color: "#00D4AA", label: "Low (0-25)" },
-        ].map((item) => (
-          <div key={item.label} className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ background: item.color }} />
-            <span className="text-white/60">{item.label}</span>
+          { color: "#EF4444", label: "Critical  76–100" },
+          { color: "#F59E0B", label: "High      51–75" },
+          { color: "#EAB308", label: "Medium  26–50" },
+          { color: "#00D4AA", label: "Low        0–25" },
+        ].map(({ color, label }) => (
+          <div key={label} className="flex items-center gap-2 mb-1.5 last:mb-0">
+            <div
+              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+              style={{
+                background: color,
+                boxShadow: `0 0 6px ${color}90`,
+              }}
+            />
+            <span className="text-white/55 font-mono text-[10px]">{label}</span>
           </div>
         ))}
         {assetPins.length > 0 && (
-          <>
-            <div className="border-t border-white/10 pt-1.5 mt-1.5">
-              <div className="flex items-center gap-2">
-                <div className="w-2.5 h-2.5 bg-white/80 rotate-45" />
-                <span className="text-white/60">Portfolio Asset</span>
-              </div>
+          <div className="border-t border-white/10 mt-2 pt-2">
+            <div className="flex items-center gap-2">
+              <div
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                style={{ background: "rgba(255,255,255,0.85)", boxShadow: "0 0 4px rgba(255,255,255,0.5)" }}
+              />
+              <span className="text-white/55 font-mono text-[10px]">Asset Pin</span>
             </div>
-          </>
+          </div>
         )}
       </div>
 
-      {/* Zoom controls */}
-      <div className="absolute right-4 bottom-4 flex flex-col gap-1">
+      {/* ── Zoom + Tilt Controls ───────────────────────────────────────────── */}
+      <div className="absolute right-4 bottom-16 flex flex-col gap-1.5 z-10">
         {[
-          { label: "+", fn: zoomIn },
-          { label: "−", fn: zoomOut },
-          { label: "⌂", fn: resetView },
-        ].map(({ label, fn }) => (
+          { label: "+", fn: zoomIn, title: "Zoom in" },
+          { label: "−", fn: zoomOut, title: "Zoom out" },
+          { label: "⌂", fn: resetView, title: "Reset view" },
+          { label: "3D", fn: tiltToggle, title: "Toggle 3D pitch" },
+        ].map(({ label, fn, title }) => (
           <button
             key={label}
             onClick={fn}
-            className="w-8 h-8 rounded-lg font-bold text-white/70 hover:text-white hover:bg-white/15 transition-all text-sm flex items-center justify-center"
-            style={{ background: "rgba(10,15,30,0.85)", border: "1px solid rgba(255,255,255,0.1)" }}
+            title={title}
+            className="w-9 h-9 rounded-xl font-bold text-white/70 hover:text-white transition-all text-sm flex items-center justify-center hover:scale-110 active:scale-95"
+            style={{
+              background: "rgba(8,12,26,0.88)",
+              border: "1px solid rgba(255,255,255,0.1)",
+              backdropFilter: "blur(10px)",
+              boxShadow: "0 2px 12px rgba(0,0,0,0.4)",
+            }}
           >
             {label}
           </button>
         ))}
       </div>
 
-      {/* Attribution */}
-      <div className="absolute bottom-2 right-14 text-[10px] text-white/20">
-        © EarthRisk AI · Sentinel-2 derived
+      {/* ── Compass rose ──────────────────────────────────────────────────── */}
+      <div
+        className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center z-10 text-[10px] font-bold text-white/30"
+        style={{
+          background: "rgba(8,12,26,0.75)",
+          border: "1px solid rgba(255,255,255,0.08)",
+          backdropFilter: "blur(8px)",
+          transform: `rotate(${viewState.bearing}deg)`,
+          transition: "transform 0.1s linear",
+        }}
+      >
+        N
       </div>
 
-      {/* Loading overlay */}
-      {!geoLoaded && (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-[#00D4AA] text-sm animate-pulse">Loading map data…</div>
+      {/* ── Pitch indicator ───────────────────────────────────────────────── */}
+      <div
+        className="absolute top-4 left-4 px-2.5 py-1.5 rounded-lg z-10 text-[10px] font-mono text-white/40"
+        style={{
+          background: "rgba(8,12,26,0.75)",
+          border: "1px solid rgba(0,212,170,0.1)",
+          backdropFilter: "blur(8px)",
+        }}
+      >
+        <span className="text-[#00D4AA]/70">pitch</span>{" "}
+        {Math.round(viewState.pitch)}°
+        <span className="mx-1.5 text-white/20">·</span>
+        <span className="text-[#00D4AA]/70">zoom</span>{" "}
+        {viewState.zoom.toFixed(1)}
+      </div>
+
+      {/* ── Attribution ───────────────────────────────────────────────────── */}
+      <div className="absolute bottom-2 right-4 text-[9px] text-white/15 z-10">
+        © CARTO · © OpenStreetMap · EarthRisk AI
+      </div>
+
+      {/* ── Loading indicator ─────────────────────────────────────────────── */}
+      {geoLoading && (
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 text-xs text-[#00D4AA]/60 animate-pulse pointer-events-none">
+          Loading map data…
         </div>
       )}
     </div>

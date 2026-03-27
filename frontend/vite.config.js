@@ -15,11 +15,14 @@ export default defineConfig({
   build: {
     outDir: "dist",
     sourcemap: false,
+    chunkSizeWarningLimit: 1600,
     rollupOptions: {
       output: {
         manualChunks: {
           vendor: ["react", "react-dom", "react-router-dom"],
           charts: ["recharts"],
+          maplibre: ["maplibre-gl"],
+          deckgl: ["deck.gl", "@deck.gl/react", "@deck.gl/layers", "@deck.gl/geo-layers"],
         },
       },
     },
