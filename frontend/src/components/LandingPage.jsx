@@ -24,14 +24,12 @@ export default function LandingPage() {
             animation: "gridMove 20s linear infinite",
           }}
         />
-        {/* Radial glow center */}
         <div
           className="absolute inset-0"
           style={{
             background: "radial-gradient(ellipse 80% 60% at 50% 40%, rgba(0,212,170,0.08) 0%, transparent 70%)",
           }}
         />
-        {/* Floating orbs */}
         {[...Array(6)].map((_, i) => (
           <div
             key={i}
@@ -74,39 +72,25 @@ export default function LandingPage() {
           </span>
         </div>
 
-        {/* Main Headline */}
-        <h1 className="text-5xl md:text-7xl font-bold text-white mb-6 leading-tight tracking-tight">
-          Climate Risk
+        {/* IBM Challenge aligned headline */}
+        <h1 className="text-4xl md:text-6xl font-bold text-white mb-6 leading-tight tracking-tight">
+          Detect how areas
           <br />
           <span
             className="text-transparent bg-clip-text"
             style={{ backgroundImage: "linear-gradient(135deg, #00D4AA 0%, #00a0ff 100%)" }}
           >
-            Intelligence
+            change over time
           </span>
         </h1>
 
-        <p className="text-xl md:text-2xl text-white/60 mb-4 font-light">
-          For the insurance industry
+        <p className="text-lg md:text-xl text-white/55 mb-3 font-light max-w-2xl mx-auto leading-relaxed">
+          Convert environmental data into explainable insurance risk insights.
         </p>
 
-        {/* Sub-tagline with tech pills */}
-        <div className="flex flex-wrap items-center justify-center gap-2 mb-12 text-sm text-white/40">
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00D4AA]" />
-            Powered by real satellite data
-          </span>
-          <span className="text-white/20">·</span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
-            XGBoost ML scoring engine
-          </span>
-          <span className="text-white/20">·</span>
-          <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#a78bfa]" />
-            Explainable AI
-          </span>
-        </div>
+        <p className="text-sm text-white/35 mb-10">
+          For the insurance industry · Powered by real satellite data · XGBoost ML · Explainable AI
+        </p>
 
         {/* CTA Button */}
         <button
@@ -117,30 +101,18 @@ export default function LandingPage() {
             boxShadow: "0 0 40px rgba(0,212,170,0.3)",
           }}
         >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            className="transition-transform group-hover:rotate-12"
-          >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="transition-transform group-hover:rotate-12">
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="1.5" />
             <circle cx="12" cy="9" r="2.5" fill="currentColor" />
           </svg>
           Open Risk Map
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            className="transition-transform group-hover:translate-x-1"
-          >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="transition-transform group-hover:translate-x-1">
             <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </button>
 
         {/* Feature pills */}
-        <div className="flex flex-wrap justify-center gap-3 mt-12">
+        <div className="flex flex-wrap justify-center gap-3 mt-10">
           {[
             { icon: "🛰️", label: "Real Sentinel-2 Data" },
             { icon: "🔄", label: "Underwriter Feedback Loop" },
@@ -155,9 +127,33 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+
+        {/* Data Sources footer badges — IBM challenge requirement */}
+        <div className="flex flex-wrap justify-center items-center gap-3 mt-10">
+          <span className="text-[10px] text-white/25 uppercase tracking-widest mr-1">Data Sources</span>
+          {[
+            { label: "Sentinel-2", color: "#00D4AA" },
+            { label: "ERA5", color: "#60a5fa" },
+            { label: "XGBoost", color: "#a78bfa" },
+            { label: "Explainable AI", color: "#F59E0B" },
+          ].map(({ label, color }) => (
+            <div
+              key={label}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold"
+              style={{
+                background: `${color}15`,
+                border: `1px solid ${color}35`,
+                color,
+              }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+              {label}
+            </div>
+          ))}
+        </div>
       </div>
 
-      {/* Bottom decorative stats */}
+      {/* Bottom stats */}
       <div
         className={`absolute bottom-8 left-0 right-0 flex justify-center gap-8 md:gap-16 transition-all duration-1000 delay-500 ${
           mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"

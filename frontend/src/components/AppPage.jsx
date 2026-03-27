@@ -31,6 +31,9 @@ export default function AppPage() {
     setAssetPins(assets);
   }, []);
 
+  // Show alert banner when selected zone score > 80
+  const showCriticalAlert = selectedPatch && (selectedPatch.score > 80);
+
   return (
     <div className="h-screen flex flex-col bg-[#0A0F1E] overflow-hidden">
       {/* Top Navigation Bar */}
@@ -42,7 +45,6 @@ export default function AppPage() {
           backdropFilter: "blur(12px)",
         }}
       >
-        {/* Logo */}
         <div
           className="flex items-center gap-2.5 px-5 py-3 cursor-pointer"
           onClick={() => navigate("/")}
@@ -65,12 +67,10 @@ export default function AppPage() {
           </div>
         </div>
 
-        {/* Stats bar */}
         <div className="flex-1 flex justify-center overflow-hidden">
           <StatsBar refreshTrigger={feedbackCount} />
         </div>
 
-        {/* Right actions */}
         <div className="flex items-center gap-2 px-4">
           <div className="hidden md:flex items-center gap-1.5 text-xs text-white/30">
             <span className="w-1.5 h-1.5 rounded-full bg-[#00D4AA] animate-pulse" />
@@ -85,14 +85,39 @@ export default function AppPage() {
         </div>
       </header>
 
+      {/* ── Critical zone alert banner ────────────────────────────────────────── */}
+      {showCriticalAlert && (
+        <div
+          className="flex-shrink-0 flex items-center justify-between px-5 py-2.5 z-20"
+          style={{
+            background: "linear-gradient(90deg, rgba(239,68,68,0.18) 0%, rgba(239,68,68,0.08) 100%)",
+            borderBottom: "1px solid rgba(239,68,68,0.35)",
+          }}
+        >
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-2 h-2 rounded-full bg-[#EF4444] flex-shrink-0"
+              style={{ boxShadow: "0 0 6px #EF4444", animation: "pulse 1s infinite" }}
+            />
+            <span className="text-xs font-semibold text-[#EF4444]">
+              ALERT: {selectedPatch.name} (score {selectedPatch.score}/100) requires immediate risk reassessment
+            </span>
+          </div>
+          <button
+            onClick={handleClosePanel}
+            className="text-[#EF4444]/50 hover:text-[#EF4444] text-xs ml-4 transition-colors"
+          >
+            ✕ Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Main content area */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* Map area */}
         <div
           className="flex-1 relative transition-all duration-500"
-          style={{
-            marginRight: panelOpen ? "400px" : "0",
-          }}
+          style={{ marginRight: panelOpen ? "400px" : "0" }}
         >
           <GreeceMap
             onPatchClick={handlePatchClick}
@@ -100,10 +125,9 @@ export default function AppPage() {
             selectedPatch={selectedPatch}
           />
 
-          {/* Click hint overlay — shown when no patch selected */}
           {!selectedPatch && (
             <div
-              className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full text-xs text-white/50 pointer-events-none animate-pulse"
+              className="absolute top-16 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full text-xs text-white/50 pointer-events-none animate-pulse"
               style={{
                 background: "rgba(10,15,30,0.7)",
                 border: "1px solid rgba(255,255,255,0.08)",
@@ -126,10 +150,7 @@ export default function AppPage() {
         )}
       </div>
 
-      {/* Portfolio uploader */}
       <PortfolioUploader onAssetsLoaded={handleAssetsLoaded} />
-
-      {/* History drawer */}
       <HistoryDrawer refreshTrigger={feedbackCount} />
     </div>
   );
