@@ -16,6 +16,14 @@ const TIER_CONFIG = {
   LOW:      { color: "#00D4AA", bg: "rgba(0,212,170,0.15)", label: "LOW" },
 };
 
+// Plain-language explanations per tier
+const PLAIN_LANGUAGE = {
+  CRITICAL: "This zone has severe environmental stress indicators that materially increase the probability of insured loss events. Wildfire, flood, and land degradation risks are elevated beyond standard actuarial tables. New policies should be flagged for manual underwriting review, and existing coverage should be reassessed at renewal.",
+  HIGH: "Environmental conditions in this area show a deteriorating trend that exceeds regional averages. Vegetation loss and temperature anomalies suggest a 1.5–2× higher likelihood of property damage compared to a baseline low-risk zone. Apply risk loading factors accordingly.",
+  MEDIUM: "Moderate climate stress indicators are present, but within manageable ranges for standard underwriting. Seasonal volatility and gradual vegetation decline warrant monitoring over the next 12 months. Standard policy terms apply with recommended annual reassessment.",
+  LOW: "Environmental conditions are stable with no significant climate risk signals detected. This zone is suitable for standard insurance products without additional risk loading. Continue monitoring via annual satellite re-assessment.",
+};
+
 function AnimatedBar({ label, value, max, color, delay }) {
   const [width, setWidth] = useState(0);
   useEffect(() => {
@@ -55,10 +63,7 @@ function ScoreRing({ score, tier }) {
   return (
     <div className="relative flex items-center justify-center w-36 h-36">
       <svg width="144" height="144" viewBox="0 0 144 144" className="absolute">
-        <circle
-          cx="72" cy="72" r="52"
-          fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10"
-        />
+        <circle cx="72" cy="72" r="52" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="10" />
         <circle
           cx="72" cy="72" r="52"
           fill="none"
@@ -75,10 +80,7 @@ function ScoreRing({ score, tier }) {
         />
       </svg>
       <div className="text-center z-10">
-        <div
-          className="text-4xl font-bold leading-none"
-          style={{ color: config.color }}
-        >
+        <div className="text-4xl font-bold leading-none" style={{ color: config.color }}>
           {score}
         </div>
         <div className="text-xs text-white/40 mt-1">/ 100</div>
@@ -87,8 +89,54 @@ function ScoreRing({ score, tier }) {
   );
 }
 
+// ── Expandable "What does this mean?" section ─────────────────────────────────
+function WhatDoesItMean({ tier }) {
+  const [open, setOpen] = useState(false);
+  const config = TIER_CONFIG[tier] || TIER_CONFIG.LOW;
+  const explanation = PLAIN_LANGUAGE[tier] || PLAIN_LANGUAGE.LOW;
+
+  return (
+    <div
+      className="mx-5 mb-3 rounded-xl border overflow-hidden"
+      style={{ borderColor: "rgba(255,255,255,0.07)", background: "rgba(255,255,255,0.02)" }}
+    >
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left transition-colors hover:bg-white/5"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-base">💡</span>
+          <span className="text-xs font-semibold text-white/70">What does this mean?</span>
+        </div>
+        <span
+          className="text-[10px] font-bold transition-transform duration-200"
+          style={{
+            color: config.color,
+            display: "inline-block",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)",
+          }}
+        >
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 border-t border-white/5">
+          <div
+            className="mt-3 px-3 py-2 rounded-lg text-[11px] leading-relaxed"
+            style={{ background: `${config.color}10`, color: "rgba(255,255,255,0.65)", borderLeft: `2px solid ${config.color}60` }}
+          >
+            {explanation}
+          </div>
+          <div className="mt-2 text-[10px] text-white/25 italic">
+            Plain-language summary generated for underwriter use. See AI Risk Briefing for full analysis.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
-  const [tab, setTab] = useState("overview");
   const [aiSummary, setAiSummary] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [overrideOpen, setOverrideOpen] = useState(false);
@@ -98,6 +146,7 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
   const [backendData, setBackendData] = useState(null);
   const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
   const snapshotIdRef = useRef(null);
 
   useEffect(() => {
@@ -111,7 +160,6 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
     setBackendData(null);
     setOverrideOpen(false);
     snapshotIdRef.current = null;
-
     fetchScore();
   }, [patch?.id]);
 
@@ -121,17 +169,13 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
       const res = await fetch("/api/score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          lat: patch.lat,
-          lon: patch.lon,
-          area_name: patch.name,
-        }),
+        body: JSON.stringify({ lat: patch.lat, lon: patch.lon, area_name: patch.name }),
       });
       const data = await res.json();
       setBackendData(data);
       setAiSummary(data.summary || "Risk analysis unavailable.");
       snapshotIdRef.current = data.id;
-    } catch (e) {
+    } catch {
       setAiSummary(
         `${patch.name} presents a ${patch.tier.toLowerCase()} climate risk profile based on satellite-derived vegetation indices and temperature anomaly data. Vegetation cover has declined significantly over the past 24 months, correlating with increased wildfire susceptibility and soil erosion indicators. Underwriters should apply a risk loading factor consistent with the ${patch.tier} tier classification for property and casualty policies in this zone.`
       );
@@ -175,13 +219,23 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
       summary: aiSummary,
       snapshot_id: snapshotIdRef.current || patch.id,
     });
-    const url = `/api/report/pdf?${params}`;
     const link = document.createElement("a");
-    link.href = url;
+    link.href = `/api/report/pdf?${params}`;
     link.download = `earthrisk-${patch.name.replace(/\s+/g, "-")}.pdf`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  function handleShare() {
+    const score = backendData?.score ?? patch.score;
+    const tier = backendData?.tier || patch.tier;
+    const shortSummary = aiSummary.slice(0, 120) + (aiSummary.length > 120 ? "…" : "");
+    const text = `EarthRisk AI — ${patch.name} (${patch.region})\nRisk Score: ${score}/100 · ${tier}\n${shortSummary}\n\nPowered by EarthRisk AI`;
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2200);
+    });
   }
 
   if (!patch) return null;
@@ -190,17 +244,21 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
   const tier = backendData?.tier || patch.tier;
   const config = TIER_CONFIG[tier] || TIER_CONFIG.LOW;
   const factors = patch.factors;
-
-  // Filter trend data to show one point per quarter for readability
   const chartData = patch.trendData.filter((_, i) => i % 3 === 0);
+
+  const trendLabel =
+    patch.trend === "rising" ? "↑ Rising"
+    : patch.trend === "improving" ? "↓ Improving"
+    : "→ Stable";
+  const trendColor =
+    patch.trend === "rising" ? "#EF4444"
+    : patch.trend === "improving" ? "#00D4AA"
+    : "#EAB308";
 
   return (
     <>
-      {/* Overlay on mobile */}
-      <div
-        className="fixed inset-0 bg-black/40 z-30 md:hidden"
-        onClick={onClose}
-      />
+      {/* Mobile backdrop */}
+      <div className="fixed inset-0 bg-black/40 z-30 md:hidden" onClick={onClose} />
 
       <div
         className={`fixed right-0 top-0 bottom-0 w-full md:w-[400px] z-40 flex flex-col transition-transform duration-500 ease-out ${
@@ -215,7 +273,7 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
         {/* Toast */}
         {toast && (
           <div
-            className="absolute top-4 left-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium text-white text-center transition-all duration-300"
+            className="absolute top-4 left-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium text-white text-center"
             style={{ background: "rgba(0,212,170,0.2)", border: "1px solid rgba(0,212,170,0.4)" }}
           >
             {toast}
@@ -237,12 +295,27 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
               <span className="text-xs text-white/40">{patch.cluster}</span>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all flex-shrink-0"
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Share button */}
+            <button
+              onClick={handleShare}
+              title="Copy summary to clipboard"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-sm transition-all hover:scale-110 active:scale-95"
+              style={{
+                background: copied ? "rgba(0,212,170,0.2)" : "rgba(255,255,255,0.06)",
+                border: copied ? "1px solid rgba(0,212,170,0.4)" : "1px solid rgba(255,255,255,0.08)",
+                color: copied ? "#00D4AA" : "rgba(255,255,255,0.5)",
+              }}
+            >
+              {copied ? "✓" : "⎘"}
+            </button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         {/* Score hero */}
@@ -256,10 +329,12 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
               {config.label} RISK
             </div>
             <div className="text-xs text-white/40 space-y-1">
-              <div>Trend: <span className={
-                patch.trend === "rising" ? "text-red-400" :
-                patch.trend === "improving" ? "text-teal-400" : "text-yellow-400"
-              }>{patch.trend === "rising" ? "↑ Rising" : patch.trend === "improving" ? "↓ Improving" : "→ Stable"}</span></div>
+              <div>
+                Trend:{" "}
+                <span className="font-semibold" style={{ color: trendColor }}>
+                  {trendLabel}
+                </span>
+              </div>
               <div>Lat: <span className="text-white/60 font-mono">{patch.lat.toFixed(4)}°N</span></div>
               <div>Lon: <span className="text-white/60 font-mono">{patch.lon.toFixed(4)}°E</span></div>
             </div>
@@ -268,6 +343,7 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto">
+
           {/* Trend chart */}
           <div className="px-5 pt-4 pb-2">
             <div className="text-xs text-white/40 font-semibold uppercase tracking-wider mb-3">
@@ -320,50 +396,35 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
             <div className="text-xs text-white/40 font-semibold uppercase tracking-wider mb-2">
               Risk Factors
             </div>
-            <AnimatedBar
-              label="Vegetation Loss"
-              value={factors.ndvi_drop}
-              max={100}
-              color="#EF4444"
-              delay={200}
-            />
-            <AnimatedBar
-              label="Temperature Rise"
-              value={factors.temp_increase}
-              max={5}
-              color="#F59E0B"
-              delay={350}
-            />
-            <AnimatedBar
-              label="Land Stress Index"
-              value={factors.land_stress * 100}
-              max={100}
-              color="#EAB308"
-              delay={500}
-            />
-            <AnimatedBar
-              label="Asset Proximity"
-              value={factors.asset_proximity}
-              max={100}
-              color="#a78bfa"
-              delay={650}
-            />
+            <AnimatedBar label="Vegetation Loss" value={factors.ndvi_drop} max={100} color="#EF4444" delay={200} />
+            <AnimatedBar label="Temperature Rise" value={factors.temp_increase} max={5} color="#F59E0B" delay={350} />
+            <AnimatedBar label="Land Stress Index" value={factors.land_stress * 100} max={100} color="#EAB308" delay={500} />
+            <AnimatedBar label="Asset Proximity" value={factors.asset_proximity} max={100} color="#a78bfa" delay={650} />
           </div>
 
-          {/* AI Summary */}
+          {/* "What does this mean?" expandable */}
+          <WhatDoesItMean tier={tier} />
+
+          {/* AI Summary — IBM-aligned styling */}
           <div
             className="mx-5 my-3 p-4 rounded-xl border"
-            style={{
-              background: "rgba(0,212,170,0.04)",
-              borderColor: "rgba(0,212,170,0.2)",
-            }}
+            style={{ background: "rgba(0,212,170,0.04)", borderColor: "rgba(0,212,170,0.2)" }}
           >
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-5 h-5 rounded-md bg-[#00D4AA]/20 flex items-center justify-center">
-                <span className="text-xs">🤖</span>
+              {/* IBM "AI Analysis" badge */}
+              <div
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-md"
+                style={{ background: "rgba(30,58,138,0.5)", border: "1px solid rgba(59,130,246,0.3)" }}
+              >
+                <div className="w-3 h-3 rounded-sm bg-blue-500 flex items-center justify-center">
+                  <span className="text-[7px] font-black text-white leading-none">AI</span>
+                </div>
+                <span className="text-[9px] font-bold text-blue-300 tracking-wider uppercase">
+                  Analysis
+                </span>
               </div>
               <span className="text-xs font-semibold text-[#00D4AA] uppercase tracking-wider">
-                AI Risk Briefing
+                Risk Briefing
               </span>
               {aiLoading && (
                 <div className="flex gap-1 ml-auto">
@@ -399,9 +460,7 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
                 <div>
                   <label className="text-xs text-white/40 mb-1 block">New Score (0-100)</label>
                   <input
-                    type="number"
-                    min="0"
-                    max="100"
+                    type="number" min="0" max="100"
                     value={overrideScore}
                     onChange={(e) => setOverrideScore(e.target.value)}
                     placeholder="e.g. 45"
@@ -445,37 +504,23 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
               onClick={() => handleFeedback("agree")}
               disabled={feedbackSubmitting}
               className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
-              style={{
-                background: "rgba(0,212,170,0.12)",
-                border: "1px solid rgba(0,212,170,0.3)",
-                color: "#00D4AA",
-              }}
+              style={{ background: "rgba(0,212,170,0.12)", border: "1px solid rgba(0,212,170,0.3)", color: "#00D4AA" }}
             >
               <span className="text-lg">✓</span>
               <span>AGREE</span>
             </button>
-
             <button
               onClick={() => setOverrideOpen(!overrideOpen)}
               className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95"
-              style={{
-                background: "rgba(245,158,11,0.12)",
-                border: "1px solid rgba(245,158,11,0.3)",
-                color: "#F59E0B",
-              }}
+              style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", color: "#F59E0B" }}
             >
               <span className="text-lg">✏️</span>
               <span>OVERRIDE</span>
             </button>
-
             <button
               onClick={handleExportPDF}
               className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95"
-              style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.15)",
-                color: "rgba(255,255,255,0.8)",
-              }}
+              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }}
             >
               <span className="text-lg">📄</span>
               <span>EXPORT</span>
