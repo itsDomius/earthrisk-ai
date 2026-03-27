@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { IconCheck, IconPencil, IconClose } from "./Icons";
 
 const TIER_COLORS = {
   CRITICAL: "#EF4444",
@@ -61,7 +62,9 @@ export default function HistoryDrawer({ refreshTrigger }) {
           backdropFilter: "blur(12px)",
         }}
       >
-        <span>{open ? "↓" : "↑"}</span>
+        <span style={{ display: "inline-block", transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15" /></svg>
+        </span>
         <span>Risk Archive</span>
         <span
           className="text-xs px-2 py-0.5 rounded-full font-bold"
@@ -107,9 +110,9 @@ export default function HistoryDrawer({ refreshTrigger }) {
             </div>
             <button
               onClick={() => setOpen(false)}
-              className="text-white/30 hover:text-white text-lg leading-none"
+              className="text-white/30 hover:text-white leading-none flex items-center"
             >
-              ✕
+              <IconClose size={16} />
             </button>
           </div>
         </div>
@@ -164,7 +167,11 @@ export default function HistoryDrawer({ refreshTrigger }) {
                               color: snap.action === "agree" ? "#00D4AA" : "#F59E0B",
                             }}
                           >
-                            {snap.action === "agree" ? "✓ Confirmed" : "✏ Override"}
+                            <span className="flex items-center gap-1">
+                              {snap.action === "agree"
+                                ? <><IconCheck size={10} /> Confirmed</>
+                                : <><IconPencil size={10} /> Override</>}
+                            </span>
                           </span>
                         ) : (
                           <span className="text-white/20">—</span>

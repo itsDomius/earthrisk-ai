@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { IconMousePointer, IconClose, IconHexagon } from "./Icons";
 import GreeceMap from "./GreeceMap";
 import ScorePanel from "./ScorePanel";
 import StatsBar from "./StatsBar";
@@ -37,9 +38,9 @@ function PriorityQueue({ onAssess, onClose }) {
         </div>
         <button
           onClick={onClose}
-          className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white text-xs transition-all"
+          className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all"
         >
-          ✕
+          <IconClose size={13} />
         </button>
       </div>
 
@@ -49,7 +50,7 @@ function PriorityQueue({ onAssess, onClose }) {
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold"
           style={{ background: "rgba(15,98,254,0.12)", border: "1px solid rgba(15,98,254,0.3)", color: "#0F62FE" }}
         >
-          <span>⬡</span> Ranked by XGBoost risk model · IBM watsonx
+          <IconHexagon size={11} /> Ranked by XGBoost risk model · IBM watsonx
         </div>
       </div>
 
@@ -296,9 +297,9 @@ export default function AppPage() {
           </div>
           <button
             onClick={() => setAlertDismissed(true)}
-            className="text-[#EF4444]/50 hover:text-[#EF4444] text-xs ml-4 transition-colors flex-shrink-0"
+            className="text-[#EF4444]/50 hover:text-[#EF4444] text-xs ml-4 transition-colors flex-shrink-0 flex items-center gap-1"
           >
-            ✕ Dismiss
+            <IconClose size={11} /> Dismiss
           </button>
         </div>
       )}
@@ -325,7 +326,7 @@ export default function AppPage() {
                 backdropFilter: "blur(8px)",
               }}
             >
-              <span>👆</span>
+              <IconMousePointer size={14} className="opacity-60" />
               Click any risk zone to open assessment
             </div>
           )}

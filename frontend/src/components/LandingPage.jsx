@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
+import { IconSatellite, IconRefresh, IconClipboard } from "./Icons";
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -114,15 +115,15 @@ export default function LandingPage() {
         {/* Feature pills */}
         <div className="flex flex-wrap justify-center gap-3 mt-10">
           {[
-            { icon: "🛰️", label: "Real Sentinel-2 Data" },
-            { icon: "🔄", label: "Underwriter Feedback Loop" },
-            { icon: "📋", label: "Regulatory Audit Trail" },
+            { icon: <IconSatellite size={14} />, label: "Real Sentinel-2 Data" },
+            { icon: <IconRefresh size={14} />, label: "Underwriter Feedback Loop" },
+            { icon: <IconClipboard size={14} />, label: "Regulatory Audit Trail" },
           ].map((pill) => (
             <div
               key={pill.label}
               className="flex items-center gap-2 px-5 py-2.5 rounded-full border border-white/10 bg-white/5 text-white/70 text-sm backdrop-blur-sm hover:border-[#00D4AA]/40 hover:text-white transition-all duration-300"
             >
-              <span>{pill.icon}</span>
+              {pill.icon}
               <span>{pill.label}</span>
             </div>
           ))}

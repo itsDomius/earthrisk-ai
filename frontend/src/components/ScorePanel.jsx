@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { IconLightbulb, IconCheck, IconZap, IconCopy, IconClose, IconPencil, IconFileText } from "./Icons";
 import {
   LineChart, Line,
   AreaChart, Area,
@@ -126,7 +127,7 @@ function WhatDoesItMean({ tier }) {
         className="w-full flex items-center justify-between px-4 py-3 text-left transition-colors hover:bg-white/5"
       >
         <div className="flex items-center gap-2">
-          <span className="text-base">💡</span>
+          <span style={{ color: config.color, opacity: 0.8, display: "flex" }}><IconLightbulb size={15} /></span>
           <span className="text-xs font-semibold text-white/70">What does this mean?</span>
         </div>
         <span
@@ -334,7 +335,7 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
           reason: action === "override" ? overrideReason : null,
         }),
       });
-      setToast(action === "agree" ? "✓ Assessment confirmed — logged to audit trail" : `⚡ Override recorded: ${overrideScore}/100`);
+      setToast(action === "agree" ? "Assessment confirmed — logged to audit trail" : `Override recorded: ${overrideScore}/100`);
       setOverrideOpen(false);
       if (onFeedbackSubmit) onFeedbackSubmit();
     } catch {
@@ -427,11 +428,11 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
                 border: copied ? "1px solid rgba(0,212,170,0.4)" : "1px solid rgba(255,255,255,0.08)",
                 color: copied ? "#00D4AA" : "rgba(255,255,255,0.5)",
               }}>
-              {copied ? "✓" : "⎘"}
+              {copied ? <IconCheck size={13} /> : <IconCopy size={13} />}
             </button>
             <button onClick={onClose}
-              className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all text-xs">
-              ✕
+              className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/40 hover:text-white transition-all">
+              <IconClose size={13} />
             </button>
           </div>
         </div>
@@ -627,17 +628,17 @@ export default function ScorePanel({ patch, onClose, onFeedbackSubmit }) {
                 <button onClick={() => handleFeedback("agree")} disabled={feedbackSubmitting}
                   className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
                   style={{ background: "rgba(0,212,170,0.12)", border: "1px solid rgba(0,212,170,0.3)", color: "#00D4AA" }}>
-                  <span className="text-lg">✓</span><span>AGREE</span>
+                  <IconCheck size={18} /><span>AGREE</span>
                 </button>
                 <button onClick={() => setOverrideOpen(!overrideOpen)}
                   className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95"
                   style={{ background: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", color: "#F59E0B" }}>
-                  <span className="text-lg">✏️</span><span>OVERRIDE</span>
+                  <IconPencil size={18} /><span>OVERRIDE</span>
                 </button>
                 <button onClick={handleExportPDF}
                   className="flex flex-col items-center gap-1.5 py-3 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95"
                   style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.8)" }}>
-                  <span className="text-lg">📄</span><span>EXPORT</span>
+                  <IconFileText size={18} /><span>EXPORT</span>
                 </button>
               </div>
             </>

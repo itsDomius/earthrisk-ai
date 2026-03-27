@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { IconSatellite, IconGrid, IconHexagon } from "./Icons";
 import DeckGL from "@deck.gl/react";
 import { ScatterplotLayer, GeoJsonLayer, LineLayer } from "@deck.gl/layers";
 import { Map } from "react-map-gl/maplibre";
@@ -445,19 +446,19 @@ export default function GreeceMap({ onPatchClick, assetPins = [], selectedPatch 
       >
         <ModeButton
           label="Standard"
-          icon="◉"
+          icon={<IconGrid size={12} />}
           active={mapMode === "standard"}
           onClick={() => setMapMode("standard")}
         />
         <ModeButton
           label="Risk Heat"
-          icon="⬡"
+          icon={<IconHexagon size={12} />}
           active={mapMode === "heatmap"}
           onClick={() => setMapMode("heatmap")}
         />
         <ModeButton
           label="Satellite"
-          icon="🛰"
+          icon={<IconSatellite size={12} />}
           active={mapMode === "satellite"}
           onClick={() => setMapMode("satellite")}
         />

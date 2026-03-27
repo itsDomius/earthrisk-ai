@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { IconFolder, IconBarChart, IconDownload, IconClose } from "./Icons";
 import {
   PieChart,
   Pie,
@@ -211,7 +212,7 @@ export default function PortfolioUploader({ onAssetsLoaded }) {
           backdropFilter: "blur(12px)",
         }}
       >
-        <span className="text-lg">📁</span>
+        <IconFolder size={18} />
         <span>Portfolio Upload</span>
         {stats && (
           <span
@@ -240,7 +241,7 @@ export default function PortfolioUploader({ onAssetsLoaded }) {
               <div className="text-sm font-bold text-white">Asset Portfolio</div>
               <div className="text-xs text-white/30">Upload CSV to map insured assets</div>
             </div>
-            <button onClick={() => setOpen(false)} className="text-white/30 hover:text-white text-lg">✕</button>
+            <button onClick={() => setOpen(false)} className="text-white/30 hover:text-white flex items-center"><IconClose size={16} /></button>
           </div>
 
           {/* Drop zone */}
@@ -261,7 +262,7 @@ export default function PortfolioUploader({ onAssetsLoaded }) {
                 <div className="text-[#00D4AA] text-sm animate-pulse">Processing…</div>
               ) : (
                 <>
-                  <span className="text-3xl mb-2">📊</span>
+                  <span className="mb-2 opacity-40"><IconBarChart size={32} /></span>
                   <p className="text-sm text-white/60 text-center">
                     Drop CSV file here
                     <br />
@@ -382,7 +383,7 @@ export default function PortfolioUploader({ onAssetsLoaded }) {
                   color: "rgba(255,255,255,0.8)",
                 }}
               >
-                <span>📥</span>
+                <IconDownload size={15} />
                 {reportLoading ? "Generating…" : "Download Portfolio Report"}
               </button>
             </div>
