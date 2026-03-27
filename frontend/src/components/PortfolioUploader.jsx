@@ -43,8 +43,11 @@ function PieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }) {
   );
 }
 
-export default function PortfolioUploader({ onAssetsLoaded }) {
-  const [open, setOpen] = useState(false);
+export default function PortfolioUploader({ onAssetsLoaded, open: externalOpen, onToggle }) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const controlled = onToggle !== undefined;
+  const open = controlled ? externalOpen : internalOpen;
+  const setOpen = controlled ? onToggle : setInternalOpen;
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [stats, setStats] = useState(null);
@@ -201,33 +204,35 @@ export default function PortfolioUploader({ onAssetsLoaded }) {
 
   return (
     <>
-      {/* Floating trigger */}
-      <button
-        onClick={() => setOpen(!open)}
-        className="fixed bottom-6 left-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold text-white transition-all hover:scale-105 shadow-xl"
-        style={{
-          background: open ? "rgba(0,212,170,0.25)" : "rgba(30,41,59,0.95)",
-          border: "1px solid rgba(0,212,170,0.3)",
-          boxShadow: "0 0 20px rgba(0,212,170,0.15)",
-          backdropFilter: "blur(12px)",
-        }}
-      >
-        <IconFolder size={18} />
-        <span>Portfolio Upload</span>
-        {stats && (
-          <span
-            className="text-xs px-2 py-0.5 rounded-full font-bold"
-            style={{ background: "rgba(0,212,170,0.2)", color: "#00D4AA" }}
-          >
-            {stats.total}
-          </span>
-        )}
-      </button>
+      {/* Floating trigger — only when not controlled by footer */}
+      {!controlled && (
+        <button
+          onClick={() => setOpen(!open)}
+          className="fixed bottom-14 right-6 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl text-sm font-semibold text-white transition-all hover:scale-105 shadow-xl"
+          style={{
+            background: open ? "rgba(0,212,170,0.25)" : "rgba(30,41,59,0.95)",
+            border: "1px solid rgba(0,212,170,0.3)",
+            boxShadow: "0 0 20px rgba(0,212,170,0.15)",
+            backdropFilter: "blur(12px)",
+          }}
+        >
+          <IconFolder size={18} />
+          <span>Portfolio Upload</span>
+          {stats && (
+            <span
+              className="text-xs px-2 py-0.5 rounded-full font-bold"
+              style={{ background: "rgba(0,212,170,0.2)", color: "#00D4AA" }}
+            >
+              {stats.total}
+            </span>
+          )}
+        </button>
+      )}
 
       {/* Panel */}
       {open && (
         <div
-          className="fixed bottom-20 left-6 z-50 w-80 rounded-2xl overflow-hidden"
+          className="fixed bottom-12 left-4 z-50 w-80 rounded-2xl overflow-hidden"
           style={{
             background: "rgba(10,15,30,0.97)",
             border: "1px solid rgba(0,212,170,0.2)",

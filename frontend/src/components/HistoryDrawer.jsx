@@ -54,7 +54,7 @@ export default function HistoryDrawer({ refreshTrigger }) {
       {/* Toggle button */}
       <button
         onClick={() => setOpen(!open)}
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-white transition-all hover:scale-105"
+        className="fixed bottom-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-white transition-all hover:scale-105"
         style={{
           background: open ? "rgba(0,212,170,0.2)" : "rgba(30,41,59,0.95)",
           border: "1px solid rgba(0,212,170,0.25)",
@@ -74,11 +74,12 @@ export default function HistoryDrawer({ refreshTrigger }) {
         </span>
       </button>
 
-      {/* Drawer */}
+      {/* Drawer — slides up from above the footer */}
       <div
-        className="fixed left-0 right-0 bottom-0 z-40 transition-transform duration-400 ease-out"
+        className="fixed left-0 right-0 z-40 transition-transform duration-400 ease-out"
         style={{
-          transform: open ? "translateY(0)" : "translateY(100%)",
+          bottom: "36px",
+          transform: open ? "translateY(0)" : "translateY(110%)",
           maxHeight: "55vh",
           background: "rgba(8,12,24,0.98)",
           border: "1px solid rgba(0,212,170,0.12)",

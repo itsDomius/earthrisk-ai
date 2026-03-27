@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { IconMousePointer, IconClose, IconHexagon } from "./Icons";
+import { IconMousePointer, IconClose, IconHexagon, IconFolder } from "./Icons";
 import GreeceMap from "./GreeceMap";
 import ScorePanel from "./ScorePanel";
 import StatsBar from "./StatsBar";
@@ -114,56 +114,58 @@ function PriorityQueue({ onAssess, onClose }) {
   );
 }
 
-// ── Demo hint bar ─────────────────────────────────────────────────────────────
-function DemoHintBar() {
-  const [open, setOpen] = useState(false);
-
+// ── App Footer ────────────────────────────────────────────────────────────────
+function AppFooter({ portfolioOpen, onPortfolioToggle }) {
   return (
     <div
-      className="flex-shrink-0 z-20"
+      className="flex-shrink-0 z-20 flex items-center px-4 py-0"
       style={{
-        background: open ? "rgba(0,212,170,0.06)" : "rgba(8,12,26,0.85)",
+        height: "40px",
+        background: "rgba(8,12,26,0.92)",
         borderTop: "1px solid rgba(0,212,170,0.12)",
       }}
     >
+      {/* LEFT — Portfolio Upload trigger */}
       <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-4 py-2 text-left transition-colors hover:bg-white/5"
+        onClick={onPortfolioToggle}
+        className="flex items-center gap-1.5 px-3 h-7 rounded-xl text-xs font-semibold transition-all hover:scale-105 active:scale-95 flex-shrink-0"
+        style={{
+          background: portfolioOpen ? "rgba(0,212,170,0.18)" : "rgba(255,255,255,0.05)",
+          border: `1px solid ${portfolioOpen ? "rgba(0,212,170,0.4)" : "rgba(255,255,255,0.1)"}`,
+          color: portfolioOpen ? "#00D4AA" : "rgba(255,255,255,0.45)",
+        }}
       >
-        <div className="flex items-center gap-2">
-          <span className="text-xs">🎯</span>
-          <span className="text-[11px] font-semibold text-[#00D4AA]">Demo Guide</span>
-          <span className="text-[10px] text-white/30">— 90-second walkthrough for judges</span>
-        </div>
-        <span
-          className="text-[10px] text-[#00D4AA]/60"
-          style={{ display: "inline-block", transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
-        >▾</span>
+        <IconFolder size={12} />
+        <span>Portfolio</span>
       </button>
 
-      {open && (
-        <div className="px-4 pb-3">
-          <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5">
-            {[
-              { num: "1", text: "Click Thessaly or Evia zone on the map" },
-              { num: "2", text: "View Change Detection tab → see 2021–2025 evolution" },
-              { num: "3", text: "Check Predicted Risk card (next 12 months)" },
-              { num: "4", text: "Export PDF Report from action buttons" },
-            ].map(({ num, text }) => (
-              <div key={num} className="flex items-center gap-1.5">
-                <span
-                  className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0"
-                  style={{ background: "rgba(0,212,170,0.2)", color: "#00D4AA" }}
-                >
-                  {num}
-                </span>
-                <span className="text-[11px] text-white/55">{text}</span>
-                {num !== "4" && <span className="text-white/20 text-xs">→</span>}
-              </div>
-            ))}
+      {/* CENTER — Demo guide steps */}
+      <div className="flex-1 flex items-center justify-center gap-x-3 gap-y-1 flex-wrap">
+        <span className="text-[10px] font-bold text-[#00D4AA] uppercase tracking-widest flex-shrink-0">
+          Demo Guide
+        </span>
+        <div className="w-px h-3 bg-white/10 flex-shrink-0" />
+        {[
+          { num: "1", text: "Click Thessaly or Evia zone" },
+          { num: "2", text: "View Change Detection tab" },
+          { num: "3", text: "Check Predicted Risk card" },
+          { num: "4", text: "Export PDF Report" },
+        ].map(({ num, text }) => (
+          <div key={num} className="flex items-center gap-1.5 flex-shrink-0">
+            <span
+              className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0"
+              style={{ background: "rgba(0,212,170,0.2)", color: "#00D4AA" }}
+            >
+              {num}
+            </span>
+            <span className="text-[11px] text-white/45">{text}</span>
+            {num !== "4" && <span className="text-white/15 text-xs">→</span>}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
+
+      {/* RIGHT — spacer to balance the left button */}
+      <div className="flex-shrink-0 w-[80px]" />
     </div>
   );
 }
@@ -177,6 +179,7 @@ export default function AppPage() {
   const [feedbackCount, setFeedbackCount] = useState(0);
   const [priorityOpen, setPriorityOpen] = useState(false);
   const [alertDismissed, setAlertDismissed] = useState(false);
+  const [portfolioOpen, setPortfolioOpen] = useState(false);
 
   const handlePatchClick = useCallback((patch) => {
     setSelectedPatch(patch);
@@ -350,10 +353,16 @@ export default function AppPage() {
         )}
       </div>
 
-      {/* FIX 6 — Demo guide hint bar */}
-      <DemoHintBar />
+      <AppFooter
+        portfolioOpen={portfolioOpen}
+        onPortfolioToggle={() => setPortfolioOpen((o) => !o)}
+      />
 
-      <PortfolioUploader onAssetsLoaded={handleAssetsLoaded} />
+      <PortfolioUploader
+        onAssetsLoaded={handleAssetsLoaded}
+        open={portfolioOpen}
+        onToggle={setPortfolioOpen}
+      />
       <HistoryDrawer refreshTrigger={feedbackCount} />
     </div>
   );
